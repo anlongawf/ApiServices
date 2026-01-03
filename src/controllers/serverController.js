@@ -9,9 +9,19 @@ const serverController = {
         const disk = 5120;
 
         try {
-            // 1. Check user exists (Dùng 'Id' viết hoa theo DB của bạn)
-            const [user] = await pool.execute('SELECT * FROM users WHERE Id = ?', [userId]);
-            if (!user.length) return res.status(404).json({ error: 'User không tồn tại' });
+            // 1. Check user exists (Thử cả 'users' và 'Users' vì Linux phân biệt hoa thường)
+            let user;
+            try {
+                [user] = await pool.execute('SELECT * FROM users WHERE Id = ?', [userId]);
+            } catch (e) {
+                if (e.code === 'ER_NO_SUCH_TABLE') {
+                    [user] = await pool.execute('SELECT * FROM Users WHERE Id = ?', [userId]);
+                } else {
+                    throw e;
+                }
+            }
+
+            if (!user || !user.length) return res.status(404).json({ error: 'User không tồn tại' });
 
             // 2. Validate template
             const [template] = await pool.execute('SELECT * FROM templates WHERE id = ?', [templateId]);
