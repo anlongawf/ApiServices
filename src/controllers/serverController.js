@@ -9,29 +9,28 @@ const serverController = {
         const disk = 5120;
 
         try {
-            // 1. Check user exists and limits
-            const [user] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
-            if (!user.length) return res.status(404).json({ error: 'User not found' });
+            // 1. Check user exists (Dùng 'Id' viết hoa theo DB của bạn)
+            const [user] = await pool.execute('SELECT * FROM users WHERE Id = ?', [userId]);
+            if (!user.length) return res.status(404).json({ error: 'User không tồn tại' });
 
             // 2. Validate template
             const [template] = await pool.execute('SELECT * FROM templates WHERE id = ?', [templateId]);
-            if (!template.length) return res.status(400).json({ error: 'Invalid server version/template' });
+            if (!template.length) return res.status(400).json({ error: 'Phiên bản Minecraft không hợp lệ' });
 
-            // 3. Check quota (Total RAM/CPU/Disk usage vs user limits)
+            // 3. Hạn mức mặc định (Vì không sửa bảng users của bạn)
+            const MAX_SERVERS = 1;
+            const RAM_LIMIT = 2048; // 2GB
+            const CPU_LIMIT = 100;  // 1 Core
+            const DISK_LIMIT = 5120; // 5GB
+
+            // Kiểm tra số lượng server hiện tại
             const [usage] = await pool.execute(
-                'SELECT SUM(ram) as total_ram, SUM(cpu) as total_cpu, SUM(disk) as total_disk, COUNT(*) as count FROM servers WHERE user_id = ?',
+                'SELECT SUM(ram) as total_ram, COUNT(*) as count FROM servers WHERE user_id = ?',
                 [userId]
             );
 
-            const currentRam = parseInt(usage[0].total_ram || 0);
-            const currentCpu = parseInt(usage[0].total_cpu || 0);
-            const currentDisk = parseInt(usage[0].total_disk || 0);
-
-            if (usage[0].count >= user[0].max_servers ||
-                (currentRam + ram) > user[0].ram_limit ||
-                (currentCpu + cpu) > user[0].cpu_limit ||
-                (currentDisk + disk) > user[0].disk_limit) {
-                return res.status(400).json({ error: 'Resource limit exceeded' });
+            if (usage[0].count >= MAX_SERVERS || (parseInt(usage[0].total_ram || 0) + ram) > RAM_LIMIT) {
+                return res.status(400).json({ error: 'Bạn đã hết hạn mức tạo server (Tối đa 1 server/2GB RAM)' });
             }
 
             // 4. Call Daemon to create server with JAR URL
